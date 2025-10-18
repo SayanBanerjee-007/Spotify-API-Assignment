@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>
+        <%= title %>
+    </title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>🎵 <%= title %>
+            </h1>
+            <p class="version">Version <%= version %>
+            </p>
+            <div class="auth-status">
+                <span id="authStatus">Checking authentication...</span>
+                <button id="loginBtn" style="display: none;">Login with Spotify</button>
+            </div>
+        </header>
+
+        <main>
+            <section class="intro">
+                <h2>Welcome to Spotify API Integration</h2>
+                <p>This is a professional MVC-based Spotify API integration server. Test all endpoints directly from
+                    this page!</p>
+                <p class="note">📝 <strong>Note:</strong> Routes marked with 🔒 require authentication. Click "Login
+                    with Spotify" to authenticate.</p>
+            </section>
+
+            <% apiRoutes.forEach(category=> { %>
+                <section class="category">
+                    <h2>
+                        <%= category.category %>
+                    </h2>
+                    <div class="routes">
+                        <% category.routes.forEach(route=> { %>
+                            <div class="route-card">
+                                <div class="route-header">
+                                    <span class="method method-<%= route.method.toLowerCase() %>">
+                                        <%= route.method %>
+                                    </span>
+                                    <code class="path"><%= route.path %><%= route.params || '' %></code>
+                                    <% if (route.requiresAuth) { %>
+                                        <span class="auth-badge">🔒 Auth Required</span>
+                                        <% } %>
+                                            <% if (route.isRedirect) { %>
+                                                <span class="auth-badge redirect-badge">🔀 Redirects to Spotify</span>
+                                                <% } %>
+                                </div>
+                                <p class="description">
+                                    <%= route.description %>
+                                </p>
+
+                                <% if (route.body) { %>
+                                    <div class="request-body">
+                                        <strong>Request Body:</strong>
+                                        <pre><code><%= JSON.stringify(route.body, null, 2) %></code></pre>
+                                    </div>
+                                    <% } %>
+
+                                        <% if (route.isRedirect) { %>
+                                            <div class="test-section">
+                                                <button class="test-btn navigate-btn"
+                                                    onclick="window.location.href='<%= route.path %>'">
+                                                    🔀 Go to Login
+                                                </button>
+                                                <p class="redirect-note">This endpoint redirects to Spotify's OAuth page
+                                                </p>
+                                            </div>
+                                            <% } else if (route.testable) { %>
+                                                <div class="test-section">
+                                                    <% if (route.method==='POST' && route.body) { %>
+                                                        <% var bodyId='body-' + route.path.replace(/\//g, '-' ); %>
+                                                            <textarea class="request-input" id="<%= bodyId %>"
+                                                                placeholder="Enter JSON body"><%= JSON.stringify(route.body, null, 2) %></textarea>
+                                                            <button class="test-btn"
+                                                                onclick="testRoute('<%= route.method %>', '<%= route.path %>', '<%= bodyId %>')">
+                                                                Test Endpoint
+                                                            </button>
+                                                            <% } else { %>
+                                                                <button class="test-btn"
+                                                                    onclick="testRoute('<%= route.method %>', '<%= route.path %>', null)">
+                                                                    Test Endpoint
+                                                                </button>
+                                                                <% } %>
+                                                                    <div class="response-container"
+                                                                        id="response-<%= route.path.replace(/\//g, '-') %>">
+                                                                    </div>
+                                                </div>
+                                                <% } %>
+                            </div>
+                            <% }) %>
+                    </div>
+                </section>
+                <% }) %>
+        </main>
+
+        <footer>
+            <p>Built with Express.js, EJS, and Spotify Web API</p>
+            <p>Professional MVC Architecture | Cookie-based Authentication</p>
+        </footer>
+    </div>
+
+    <script>
+        // Check authentication status on load
+        async function checkAuth() {
+            try {
+                const response = await fetch('/auth/status', {
+                    credentials: 'include'
+                });
+                const data = await response.json();
+
+                const statusEl = document.getElementById('authStatus');
+                const loginBtn = document.getElementById('loginBtn');
+
+                if (data.data?.authenticated) {
+                    statusEl.textContent = `✅ Authenticated as ${data.data.user?.display_name || 'User'}`;
+                    statusEl.className = 'status-authenticated';
+                    loginBtn.style.display = 'none';
+                } else {
+                    statusEl.textContent = '❌ Not Authenticated';
+                    statusEl.className = 'status-not-authenticated';
+                    loginBtn.style.display = 'inline-block';
+                }
+            } catch (error) {
+                document.getElementById('authStatus').textContent = '⚠️ Unable to check auth status';
+            }
+        }
+
+        // Login button handler
+        document.getElementById('loginBtn').addEventListener('click', () => {
+            window.location.href = '/auth/login';
+        });
+
+        // Test route function
+        async function testRoute(method, path, bodyInputId) {
+            const responseId = `response-${path.replace(/\//g, '-')}`;
+            const responseContainer = document.getElementById(responseId);
+
+            // Show loading state
+            responseContainer.innerHTML = '<div class="loading">⏳ Loading...</div>';
+            responseContainer.style.display = 'block';
+
+            try {
+                const options = {
+                    method: method,
+                    credentials: 'include',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                };
+
+                // Add body for POST requests
+                if (method === 'POST' && bodyInputId) {
+                    const bodyInput = document.getElementById(bodyInputId);
+                    try {
+                        options.body = bodyInput.value;
+                        // Validate JSON
+                        JSON.parse(options.body);
+                    } catch (e) {
+                        throw new Error('Invalid JSON in request body');
+                    }
+                }
+
+                const response = await fetch(path, options);
+                const data = await response.json();
+
+                // Display response
+                const statusClass = response.ok ? 'success' : 'error';
+                responseContainer.innerHTML = `
+                    <div class="response ${statusClass}">
+                        <div class="response-status">
+                            <strong>Status:</strong> ${response.status} ${response.statusText}
+                        </div>
+                        <div class="response-body">
+                            <strong>Response:</strong>
+                            <pre><code>${JSON.stringify(data, null, 2)}</code></pre>
+                        </div>
+                    </div>
+                `;
+            } catch (error) {
+                responseContainer.innerHTML = `
+                    <div class="response error">
+                        <strong>Error:</strong> ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        // Initialize on page load
+        checkAuth();
+    </script>
+</body>
+
+</html>
